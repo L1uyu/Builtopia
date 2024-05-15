@@ -72,7 +72,7 @@ Shader "Custom URP/FlowLine"
                 color *= _BaseColor;
                 half flowU =  IN.uv.x - frac(_Time.y * _FlowSpeed);
                 flowU = frac(flowU);
-                color.a *= pow(flowU, 3) * 10.0;
+                color *= pow(flowU, 3) * 4.0;
                 return color;
             }
             ENDHLSL
