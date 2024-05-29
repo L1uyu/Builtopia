@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class AnimateObject : MonoBehaviour
 {
+    public bool defaultActive = false;
     public float duration = 5.0f;  // Duration of the movement
 
     private bool isAnimating = false;
@@ -27,7 +28,7 @@ public class AnimateObject : MonoBehaviour
         while (elapsedTime < duration)
         {
             elapsedTime += Time.deltaTime;
-            EachDeltaAnimation();
+            EachDeltaAnimation(elapsedTime);
             yield return null;
         }
 
@@ -35,7 +36,7 @@ public class AnimateObject : MonoBehaviour
         isAnimating = false;
     }
 
-    public virtual void EachDeltaAnimation()
+    public virtual void EachDeltaAnimation(float elapsedTime)
     {
 
     }
