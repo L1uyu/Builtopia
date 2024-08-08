@@ -1,0 +1,72 @@
+#pragma kernel CSMain
+
+// Texture and buffer declarations
+TextureCube<float4> _inputCubemap;
+RWTexture2D<float4> _irradiancemap;
+SamplerState _PointClamp;
+int size;
+
+// UVToDir function: Convert UV coordinates to a direction vector for the given face of the cubemap
+float3 UVToDir(uint faceIndex, float2 uv)
+{
+    uv = uv * 2.0 - 1.0; // transform from [0,1] range to [-1,1]
+    float3 dir = float3(0.0, 0.0, 0.0);
+
+    if (faceIndex == 0) { dir = float3(1.0, uv.y, -uv.x); }    // Positive X
+    if (faceIndex == 1) { dir = float3(-1.0, uv.y, uv.x); }    // Negative X
+    if (faceIndex == 2) { dir = float3(uv.x, 1.0, -uv.y); }      // Positive Y
+    if (faceIndex == 3) { dir = float3(uv.x, -1.0, uv.y); }    // Negative Y
+    if (faceIndex == 4) { dir = float3(uv.x, uv.y, 1.0); }     // Positive Z
+    if (faceIndex == 5) { dir = float3(-uv.x, uv.y, -1.0); }   // Negative Z
+
+    return normalize(dir);
+}
+
+#define PI 3.14159265
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    // id.xy是像素索引
+    float2 uv = id.xy / (float)(size - 1);
+    // 用上面讲的uv和方向换算方法，求得采样向量
+    // id.z是面索引
+    float3 coord = UVToDir(id.z, uv);
+    float3 normal = normalize(coord);
+    float3 up = float3(0.0, normal.y > 0.5 ? -1.0 : 1.0, 0.0);
+    float3 right = cross(up, normal);
+    up = cross(normal, right);
+
+    float sampleDelta = 0.049; //0.0245437; cubemap的4张图围成一圈对应2Π弧度，sampleDelta = 2*3.1415/(4*width)
+    float nrSamples = 0.0;
+    float3 irradiance = float3(0, 0, 0);
+
+    for (float phi = 0.0; phi < 2.0 * PI; phi += sampleDelta)
+    {
+        for (float theta = 0.0; theta < 0.5 * PI; theta += sampleDelta)
+        {
+            // 在切线空间内，法线固定为(0, 1, 0)，然后生成采样向量，再通过TBN矩阵转换为世界空间方向
+            float3 tangentSpaceNormal = float3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+            float3 worldNormal = tangentSpaceNormal.x * right + tangentSpaceNormal.y * up + tangentSpaceNormal.z * normal;
+            float3 c = _inputCubemap.SampleLevel(_PointClamp, worldNormal, 0).rgb * cos(theta) * sin(theta);
+            irradiance += c;
+            nrSamples++;
+        }
+    }
+
+    irradiance = 3.1415926 * irradiance * (1.0 / float(nrSamples));
+    int2 offset = 0;
+
+    if (id.z == 0) offset = int2(2, 1) * size;
+    if (id.z == 1) offset = int2(0, 1) * size;
+    if (id.z == 2) offset = int2(0, 0) * size;
+    if (id.z == 3) offset = int2(1, 0) * size;
+    if (id.z == 4) offset = int2(1, 1) * size;
+    if (id.z == 5) offset = int2(2, 0) * size;
+
+    _irradiancemap[int2(id.xy) + offset] = float4(irradiance, 1);
+}
+
+
+
+
